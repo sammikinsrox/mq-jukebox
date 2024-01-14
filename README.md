@@ -39,6 +39,3 @@ Copilot is meant to help you manage these tedious actions, so you seem like the 
 ### Future Plans
 * Mez management. Choose the conditions for when you want to mez, and let the LUA take care of things for you.
 * Pulls management. Pulls mobs for you. If you truly want to AFK your bard, then this might be helpful.
-
-### A Generous License
-The GNU license allows you to modify and distribute this code, but not sell it.
