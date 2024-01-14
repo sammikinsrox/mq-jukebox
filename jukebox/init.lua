@@ -17,6 +17,7 @@ UserSettings        = Vars.UserSettings
 
 -- Class Modules
 ConsoleHistory      = require('src.class.console').new()
+Timer               = require('src.class.timer')
 
 -- Helper Module
 Helpers = require('src.helpers')
@@ -64,7 +65,7 @@ local function updateImGui()
             if UserSettings.ManageCoPilot.Bellow then Handlers.HandleBellow() end
             if UserSettings.ManageCoPilot.VaingloriousShout then Handlers.HandleVaingloriousShout() end
             if UserSettings.ManageCoPilot.Selos then Handlers.HandleSelos() end
-            if UserSettings.ManageCoPilot.Cooldowns then
+            if UserSettings.ManageCoPilot.Cooldowns and Helpers.CheckCombat() then
                 Handlers.HandleCooldowns()
                 Handlers.HandleNextAbility()
             end
@@ -80,6 +81,7 @@ local function updateImGui()
 
             -- Handle recovery if mana or endurance are low.
             if UserSettings.ManageCombat.AutoRecover and UserSettings.ManageCombat.Toggle then Handlers.HandleRecover() end
+
         end
     end
     ImGui.End()

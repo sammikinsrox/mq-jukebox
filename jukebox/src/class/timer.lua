@@ -1,18 +1,19 @@
 local Timer = {}
 Timer.__index = Timer
 
-function Timer.new(delay, callback, repeating)
+function Timer.new(delay, repeating, name, callback)
     local self = setmetatable({}, Timer)
-    self.startTime = os.clock()
+    self.startTime = os.time()
     self.delay = delay
-    self.callback = callback or nil
     self.repeating = repeating or false
+    self.name = name or "Unnamed Timer"
+    self.callback = callback or nil
     self.timerActive = true
     return self
 end
 
 function Timer:start()
-    self.startTime = os.clock()
+    self.startTime = os.time()
     self.timerActive = true
 end
 
@@ -25,7 +26,7 @@ function Timer:hasExpired()
         return false
     end
 
-    local currentTime = os.clock()
+    local currentTime = os.time()
     if currentTime - self.startTime >= self.delay then
         if self.callback then
             local status, err = pcall(self.callback)

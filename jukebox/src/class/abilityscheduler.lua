@@ -1,5 +1,3 @@
-Timer = require('src.class.timer')
-
 --------------------------------------------------
 -- Ability Scheduler
 -- This is a scheduler for copilot abilities,
@@ -15,7 +13,7 @@ AbilityScheduler.__index = AbilityScheduler
 function AbilityScheduler.new(duration)
     local self = setmetatable({}, AbilityScheduler)
     self.abilityQueue = {}
-    self.abilityDelayTimer = Timer.new(duration or 1) -- Use the provided duration or default to 1
+    self.abilityDelayTimer = Timer.new(duration or 1, false, "AbilityScheduler", nil) -- Use the provided duration or default to 1
     return self
 end
 
@@ -23,6 +21,18 @@ end
 -- @param ability (string) The name of the ability to add.
 function AbilityScheduler:addAbilityToQueue(ability)
     table.insert(self.abilityQueue, ability)
+end
+
+-- Checks if an ability is already in the queue.
+-- @param ability (string) The name of the ability to check.
+-- @return (boolean) True if the ability is in the queue, false otherwise.
+function AbilityScheduler:isAbilityInQueue(ability)
+    for _, queuedAbility in ipairs(self.abilityQueue) do
+        if queuedAbility == ability then
+            return true
+        end
+    end
+    return false
 end
 
 -- Checks if an ability is on cooldown.
@@ -36,21 +46,40 @@ function AbilityScheduler:isAbilityOnCooldown(ability)
     end
 end
 
+-- Removes all instances of an ability from the queue if it's on cooldown.
+-- @param ability (string) The name of the ability to check.
+function AbilityScheduler:removeAbilityFromQueueIfOnCooldown(ability)
+    if self:isAbilityOnCooldown(ability) then
+        for i = #self.abilityQueue, 1, -1 do
+            if self.abilityQueue[i] == ability then
+                table.remove(self.abilityQueue, i)
+            end
+        end
+    end
+end
+
 -- Casts the next ability in the ability queue if the delay timer has expired and the ability is not on cooldown.
 function AbilityScheduler:castNextAbility()
     if #self.abilityQueue > 0 and self.abilityDelayTimer:hasExpired() and Helpers.CheckCombat() then
-        local ability = table.remove(self.abilityQueue, 1)
-        if not self:isAbilityOnCooldown(ability) then
+        local ability = self.abilityQueue[1] -- Get the next ability without removing it from the queue
+
+        --print("Ability Ready: " .. ability .. " (" .. tostring(self.isAbilityOnCooldown(ability)) .. ")")
+
+        -- Remove the ability from the queue if it's on cooldown
+        self:removeAbilityFromQueueIfOnCooldown(ability)
+
+        -- If the ability is still in the queue, it's not on cooldown and can be cast
+        if self:isAbilityInQueue(ability) then
+            -- Remove the ability from the queue
+            table.remove(self.abilityQueue, 1)
+
             ConsoleHistory:addMessage('Casting ' .. ability)
             local status, error = pcall(function() mq.cmd('/aa act ' .. ability) end)
             if not status then
                 print("Error casting ability: " .. error)
             end
-            if mq.TLO.Target.Named() and UserSettings.ManageCoPilot.BurnBoss then
-                self.abilityDelayTimer:start()
-            else
-                self.abilityDelayTimer:start(UserSettings.ManageCoPilot.CoolDownDelay)
-            end
+
+            self.abilityDelayTimer:start()
         end
     end
 end

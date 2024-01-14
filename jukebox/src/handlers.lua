@@ -3,16 +3,16 @@ local GemsScheduler     = require('src.class.gemscheduler')
 local Timer             = require('src.class.timer')
 
 local CooldownScheduler = AbilityScheduler.new(UserSettings.ManageCoPilot.CoolDownDelay)
-local BurnBossScheduler = AbilityScheduler.new(0.1)
-local CopilotScheduler  = AbilityScheduler.new(0.5)
+local BurnBossScheduler = AbilityScheduler.new(0.5)
+local CopilotScheduler  = AbilityScheduler.new(1)
 
 local songScheduler = GemsScheduler.new()
 
-local AbilityCheckDelay = Timer.new(UserSettings.ManageCoPilot.CoolDownDelay)
-local CopilotCheckDelay = Timer.new(0.5)
-local ClickyCheckDelay  = Timer.new(UserSettings.ManageCoPilot.CoolDownDelay)
-local NavTimer          = Timer.new(1)
-local messageCoolDown   = Timer.new(2)
+local AbilityCheckDelay = Timer.new(1, false, 'Ability Check Delay')
+local CopilotCheckDelay = Timer.new(1, false, 'CoPilot Check Delay')
+local ClickyCheckDelay  = Timer.new(1, false, 'Clicky Check Delay')
+local NavTimer          = Timer.new(1, false, 'Nav Timer')
+local messageCoolDown   = Timer.new(2, false, 'Message Cooldown')
 
 local recovering        = false
 
@@ -75,6 +75,8 @@ end
 -- Parameters: None
 -- Returns: None
 local function HandleCooldowns()
+
+    -- Burn Boss
     if UserSettings.ManageCoPilot.BurnBoss and mq.TLO.Target.Named() and Helpers.CheckCombat() then
         local abilities = {
             'Fierce Eye',
@@ -96,8 +98,8 @@ local function HandleCooldowns()
         end
     end
 
-    -- Check if the player is in combat and the ability check delay has expired
-    if Helpers.CheckCombat() and AbilityCheckDelay:hasExpired() then
+    -- AA Abilities
+    if Helpers.CheckCombat() and AbilityCheckDelay:hasExpired() and not mq.TLO.Target.Named() then
 
         -- Handles various abilities for the Bard class.
         -- Each ability is passed as a parameter along with the corresponding trash and boss settings.
@@ -116,9 +118,9 @@ local function HandleCooldowns()
             {name = 'Shield of Notes',          trash = UserSettings.ManageCoPilot.Ability.ShieldofNotes.Trash}
         }
 
-        local function HandleAbility(abilityName, trashSetting)
+        local function HandleAbility(abilityName)
             if mq.TLO.Me.AltAbilityReady(abilityName)()  then
-                if not mq.TLO.Target.Named() and trashSetting then
+                if not CooldownScheduler:isAbilityInQueue() then
                     CooldownScheduler:addAbilityToQueue(abilityName)
                     return
                 end
@@ -130,8 +132,10 @@ local function HandleCooldowns()
         end
 
         AbilityCheckDelay:start()
+        CooldownScheduler:castNextAbility()
     end
 
+    -- Clickies
     if Helpers.CheckCombat() and ClickyCheckDelay:hasExpired() then
         -- Checks if the item 'Blade of Vesagran' is ready to use, the buff 'Spirit of Vesagran' is not active, and the ability check delay has expired.
         if mq.TLO.Me.ItemReady('Blade of Vesagran')() and mq.TLO.Me.FindBuff('name Spirit of Vesagran').ID() == nil and ClickyCheckDelay:hasExpired() then
@@ -331,6 +335,7 @@ local function HandleRecover()
 end
 
 local function HandleNextAbility()
+    BurnBossScheduler:castNextAbility()
     CopilotScheduler:castNextAbility()
     CooldownScheduler:castNextAbility()
 end
