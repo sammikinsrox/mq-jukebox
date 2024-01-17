@@ -108,6 +108,27 @@ local function Combat()
 
         ImGui.Separator()
 
+        -- Auto-Backoff checkbox
+        if UserSettings.ManageCombat.BackOff then
+            ImGui.PushStyleColor(ImGuiCol.Text, 0xFF00FF00)
+        else
+            ImGui.PushStyleColor(ImGuiCol.Text, 0xFFFFFFFF)
+        end
+        UserSettings.ManageCombat.BackOff = ImGui.Checkbox('Auto Backoff', UserSettings.ManageCombat.BackOff)
+        ImGui.PushStyleColor(ImGuiCol.Text, 0xFFFFFFFF)
+        ImGui.SetItemTooltip('If you gets below the threshold, this will automatically using Fading Memories and return you to the camp location (If you have "Use Camp" enabled).')
+
+        -- Camp Scatter Slider
+        if UserSettings.ManageCombat.BackOff then
+            ImGui.PushStyleColor(ImGuiCol.Text, 0xFF00FF00)
+        else
+            ImGui.PushStyleColor(ImGuiCol.Text, 0xFFFFFFFF)
+        end
+        ImGui.Text('Backoff Health Threshold')
+        UserSettings.ManageCombat.BackOffPct = ImGui.SliderInt('##BackOffPctHps', UserSettings.ManageCombat.BackOffPct, 0, 100)
+        ImGui.PushStyleColor(ImGuiCol.Text, 0xFFFFFFFF)
+        ImGui.SetItemTooltip('The percent of health your character will backoff at.\nExample: Setting this to 35 will backoff at 35 percent health.')
+
         --[[
     -- Auto Recover checkbox
     if UserSettings.ManageCombat.AutoRecover then
