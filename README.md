@@ -25,6 +25,9 @@ Copilot is meant to help you manage these tedious actions, so you seem like the 
  
 * *Why Scattering?*
   * So your actions don't seem overly automated. You'll attack at different times and sit in different locations to make your actions seem a little more organic.
+
+* *Automatically Back Off*
+ * Automatically back out of combat if your HP falls below a threshold you can set.
  
 ### Songs Management
 * A work in progress. The current implementation has "Resting Songs" and "Combat Songs". When you are not in combat you'll play "Resting Songs". When you engage in combat, you play "Combat Songs". *(Duh)*
