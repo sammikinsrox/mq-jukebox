@@ -1,25 +1,21 @@
-local AbilityScheduler  = require('src.class.abilityscheduler')
-local GemsScheduler     = require('src.class.gemscheduler')
-local Timer             = require('src.class.timer')
+local songScheduler         = GemsScheduler.new()
+local AbilityScheduler      = AbilityScheduler.new()
+local BossScheduler         = AbilityScheduler.new()
 
-local CooldownScheduler = AbilityScheduler.new(UserSettings.ManageCoPilot.CoolDownDelay)
-local BurnBossScheduler = AbilityScheduler.new(0.5)
-local CopilotScheduler  = AbilityScheduler.new(1)
-
-local songScheduler = GemsScheduler.new()
-
-local AbilityCheckDelay = Timer.new(1, false, 'Ability Check Delay')
-local CopilotCheckDelay = Timer.new(1, false, 'CoPilot Check Delay')
-local ClickyCheckDelay  = Timer.new(1, false, 'Clicky Check Delay')
-local NavTimer          = Timer.new(1, false, 'Nav Timer')
-local messageCoolDown   = Timer.new(2, false, 'Message Cooldown')
-
-local recovering        = false
+local AbilityCheckDelay     = Timer.new(UserSettings.ManageCoPilot.CoolDownDelay, false, 'Ability Check Delay')
+local BossCheckDelay        = Timer.new(UserSettings.ManageCoPilot.CoolDownDelay, false, 'Boss Check Delay')
+local CopilotCheckDelay     = Timer.new(1, false, 'CoPilot Check Delay')
+local callDelayTimer        = Timer.new(0.75)
 
 AbilityCheckDelay:start()
 CopilotCheckDelay:start()
+callDelayTimer:start()
 
--- Initialize the current ability index
+---------------------------------------------------
+-- Variables
+---------------------------------------------------
+local ChestSlot = tostring(mq.TLO.Me.Inventory(17).ID())               -- The ID of the item in the chest slot.
+local HasReset = true
 
 ---------------------------------------------------
 -- Ability Handlers
@@ -67,42 +63,64 @@ local function HandleSelos()
     end
 end
 
--- Function: handleCooldowns
--- Description: Handles the cooldowns of abilities based on certain conditions.
---              If in combat and the ability check delay has expired, it checks if the CoPilot should burn the boss.
---              If the target is named, it checks if the ability is ready and adds it to the cooldown scheduler queue.
---              If the target is not named and the trash setting is enabled, it adds the ability to the cooldown scheduler queue.
--- Parameters: None
--- Returns: None
 local function HandleCooldowns()
+    -- Boss Handling
+    if Helpers.CheckCombat() and BossCheckDelay:hasExpired() and mq.TLO.Target.Named() then
+        if UserSettings.ManageCoPilot.BurnBoss then
+            BossCheckDelay = Timer.new(0.25, false, 'Burn Boss Timer')
+        else
+            BossCheckDelay = Timer.new(UserSettings.ManageCoPilot.CoolDownDelay, false, 'Boss Check Delay')
+        end
 
-    -- Burn Boss
-    if UserSettings.ManageCoPilot.BurnBoss and mq.TLO.Target.Named() and Helpers.CheckCombat() then
+        BossCheckDelay:start()
+
         local abilities = {
-            'Fierce Eye',
-            'Quick Time',
-            'Cacophony',
-            'Lyrical Prankster',
-            'Song of Stone',
-            'Bladed Song',
-            'Spire of the Minstrels',
-            'Funeral Dirge',
-            'Flurry of Notes',
-            'Frenzied Kicks',
-            'Dance of Blades',
-            'Shield of Notes'
+            {name = 'Fierce Eye',               boss = UserSettings.ManageCoPilot.Ability.FierceEye.Trash},
+            {name = 'Quick Time',               boss = UserSettings.ManageCoPilot.Ability.QuickTime.Trash},
+            {name = 'Cacophony',                boss = UserSettings.ManageCoPilot.Ability.Cacophony.Trash},
+            {name = 'Lyrical Prankster',        boss = UserSettings.ManageCoPilot.Ability.LyricalPrankster.Trash},
+            {name = 'Song of Stone',            boss = UserSettings.ManageCoPilot.Ability.SongofStone.Trash},
+            {name = 'Bladed Song',              boss = UserSettings.ManageCoPilot.Ability.BladedSong.Trash},
+            {name = 'Spire of the Minstrels',   boss = UserSettings.ManageCoPilot.Ability.SpireoftheMinstrels.Trash},
+            {name = 'Funeral Dirge',            boss = UserSettings.ManageCoPilot.Ability.FuneralDirge.Trash},
+            {name = 'Flurry of Notes',          boss = UserSettings.ManageCoPilot.Ability.FlurryofNotes.Trash},
+            {name = 'Frenzied Kicks',           boss = UserSettings.ManageCoPilot.Ability.FrenziedKicks.Trash},
+            {name = 'Dance of Blades',          boss = UserSettings.ManageCoPilot.Ability.DanceofBlades.Trash},
+            {name = 'Shield of Notes',          boss = UserSettings.ManageCoPilot.Ability.ShieldofNotes.Trash}
         }
 
-        for i, ability in ipairs(abilities) do
-            BurnBossScheduler:addAbilityToQueue(ability)
+        -- Checks if an ability is ready and not already in the queue, and adds it to the queue if it passes these checks.
+        -- @param ability (string) The name of the ability to check.
+        -- Checks if an ability is ready and not already in the queue, and adds it to the queue if it passes these checks.
+        -- @param ability (string) The name of the ability to check.
+        function QueueAbilityIfReady(ability)
+            if ability and ability.name and ability.boss then
+                local status, error = pcall(function()
+                    if not BossScheduler:isAbilityOnCooldown(ability.name) and not BossScheduler:isAbilityInQueue(ability.name) then
+                        BossScheduler:addAbilityToQueue(ability.name)
+                    end
+                end)
+                if not status then
+                    print("Error queuing ability " .. ability.name .. ": "  .. error)
+                end
+            else
+                print("Attempted to queue nil ability or ability is not enabled in UserSettings")
+            end
         end
+
+        for _, ability in ipairs(abilities) do
+            local status, error = pcall(function() QueueAbilityIfReady(ability) end)
+            if not status then
+                print("Error queuing ability: " .. error)
+            end
+        end
+
+        BossScheduler:castNextAbility()
     end
 
-    -- AA Abilities
+    -- Trash Handling
     if Helpers.CheckCombat() and AbilityCheckDelay:hasExpired() and not mq.TLO.Target.Named() then
-
-        -- Handles various abilities for the Bard class.
-        -- Each ability is passed as a parameter along with the corresponding trash and boss settings.
+        AbilityCheckDelay:start()
         local abilities = {
             {name = 'Fierce Eye',               trash = UserSettings.ManageCoPilot.Ability.FierceEye.Trash},
             {name = 'Quick Time',               trash = UserSettings.ManageCoPilot.Ability.QuickTime.Trash},
@@ -118,161 +136,101 @@ local function HandleCooldowns()
             {name = 'Shield of Notes',          trash = UserSettings.ManageCoPilot.Ability.ShieldofNotes.Trash}
         }
 
-        local function HandleAbility(abilityName)
-            if mq.TLO.Me.AltAbilityReady(abilityName)()  then
-                if not CooldownScheduler:isAbilityInQueue() then
-                    CooldownScheduler:addAbilityToQueue(abilityName)
-                    return
-                end
-            end
-        end
-
-        for i, ability in ipairs(abilities) do
-            HandleAbility(ability.name, ability.trash)
-        end
-
-        AbilityCheckDelay:start()
-        CooldownScheduler:castNextAbility()
-    end
-
-    -- Clickies
-    if Helpers.CheckCombat() and ClickyCheckDelay:hasExpired() then
-        -- Checks if the item 'Blade of Vesagran' is ready to use, the buff 'Spirit of Vesagran' is not active, and the ability check delay has expired.
-        if mq.TLO.Me.ItemReady('Blade of Vesagran')() and mq.TLO.Me.FindBuff('name Spirit of Vesagran').ID() == nil and ClickyCheckDelay:hasExpired() then
-            if not mq.TLO.Target.Named() and UserSettings.ManageCoPilot.Ability.Epic.Trash then
-                mq.cmd('/stopcast')
-                mq.cmd('/useitem Blade of Vesagran')
-                ConsoleHistory:addMessage('Casting Blade of Vesagran')
-            else
-                if mq.TLO.Target.Named() and UserSettings.ManageCoPilot.Ability.Epic.Boss then
-                    mq.cmd('/stopcast')
-                    mq.cmd('/useitem Blade of Vesagran')
-                    ConsoleHistory:addMessage('Casting Blade of Vesagran')
-                end
-            end
-        end
-
-        -- Checks if the Chest Slot ability is ready to cast and casts it based on the target type (trash or boss).
-        if mq.TLO.Me.ItemReady(Vars.ChestSlot)() and ClickyCheckDelay:hasExpired() then -- Check if the Chest Slot is ready to cast.
-            if not mq.TLO.Target.Named() and UserSettings.ManageCoPilot.Ability.ChestSlot.Trash then
-                mq.cmd('/useitem 17')
-                ConsoleHistory:addMessage('Casting Chest Slot')
-            else
-                if mq.TLO.Target.Named() and UserSettings.ManageCoPilot.Ability.ChestSlot.Boss then
-                    mq.cmd('/useitem 17')
-                    ConsoleHistory:addMessage('Casting Chest Slot')
-                end
-            end
-        end
-
-        -- This code checks if the ability "Thousand Blades" is ready and casts it based on the target type and user settings.
-        if mq.TLO.Me.CombatAbilityReady('Thousand Blades')() and ClickyCheckDelay:hasExpired() then
-            if not mq.TLO.Target.Named() and UserSettings.ManageCoPilot.Ability.ThousandBlades.Trash then
-                mq.cmd('/doability "Thousand Blades"')
-                ConsoleHistory:addMessage('Casting Thousand Blades')
-            end
-        else
-            if mq.TLO.Target.Named() and UserSettings.ManageCoPilot.Ability.ThousandBlades.Boss then
-                mq.cmd('/doability "Thousand Blades"')
-                ConsoleHistory:addMessage('Casting Thousand Blades')
-            end
-        end
-
-        ClickyCheckDelay:start()
-    end
-end
-
--- handleCombat is a function that manages combat based on user settings.
--- It checks if combat management is toggled on and if the player is not already in combat.
--- If conditions are met, it selects a target to assist, starts combat, and performs a full reset if necessary.
-local function HandleCombat()
-    -- Check if combat management is toggled on and the player is not already in combat
-    if UserSettings.ManageCombat.Toggle and not Helpers.CheckCombat() and not recovering then
-        -- Calculate assist range and assist percentage with random scattering
-        local AssistRange = UserSettings.ManageCombat.AssistRange + math.random(0, UserSettings.ManageCombat.AssistRangeScatter)
-        local AssistPct = UserSettings.ManageCombat.AssistPct + math.random(0, UserSettings.ManageCombat.AssistPctScatter)
-
-        -- Check if there are valid targets within the assist range
-        function CheckForTargets()
-            if mq.TLO.SpawnCount('npc xtarhater radius ' .. AssistRange) and HasReset then return true end
-            return false
-        end
-
-        -- Select a target to assist based on group roles
-        function GetTarget()
-            if CheckForTargets() then
-                if mq.TLO.Group.MainAssist.ID() ~= nil then
-                    mq.TLO.Group.MainAssist.DoAssist()
-                end
-                if mq.TLO.Group.MainAssist.ID() == nil and mq.TLO.Group.MainTank.ID() ~= nil then
-                    mq.TLO.Group.MainTank.DoAssist()
-                end
-                if mq.TLO.Group.MainAssist.ID() == nil and mq.TLO.Group.MainTank.ID() == nil then
-                    mq.cmd('/xtarget target 1')
-                end
-                if mq.TLO.Target.ID() > 0 then
-                    ConsoleHistory:addMessage('Target Acquired: ' .. mq.TLO.Target.Name())
-                end
-            end
-        end
-
-        -- Start combat by facing the target, positioning, and initiating attacks
-        -- Function to start combat
-        function StartCombat()
-            mq.cmd('/echo starting combat')                                          -- Print a message indicating that combat is starting
-            if Helpers.CheckXTargetList() and mq.TLO.Target.Distance() <= AssistRange and mq.TLO.Target.PctHPs() <= AssistPct then
-                mq.cmd('/face ' .. mq.TLO.Target())                                  -- Face the target
-                mq.cmd('/stick behind loose')                                        -- Stick behind the target
-                mq.cmd('/attack on')                                                 -- Enable auto-attack
-                mq.cmd('/pet attack')                                                -- Command the pet to attack
-                HasReset = false                                                     -- Reset flags
-                ReturnedToCamp = false                                               -- Reset flags
-                if Helpers.CheckCombat() and messageCoolDown:hasExpired() then
-                    ConsoleHistory:addMessage('Attacking: ' .. mq.TLO.Target.Name()) -- Display a message indicating the target being attacked
-                    messageCoolDown:start()                                          -- Set a cooldown for the message
-                end
-            end
-        end
-
-        -- Perform a full reset if there are no valid targets within the assist range
-        function FullReset()
-            if CheckForTargets() then
-                HasReset = true
-                return
-            else
-                -- Check if UserSettings.ManageCombat.UseCamp is true, HasReset is false, and messageCoolDown has expired
-                if UserSettings.ManageCombat.UseCamp and not HasReset then
-                    -- Generate random coordinates within the CampScatter range
-                    local ReturnToX = CampLocationX + math.random(0, UserSettings.ManageCombat.CampScatter)
-                    local ReturnToY = CampLocationY + math.random(0, UserSettings.ManageCombat.CampScatter)
-
-                    -- Check if current position is not equal to the generated coordinates and NavTimer has expired
-                    if mq.TLO.Me.X() ~= ReturnToX and mq.TLO.Me.Y() ~= ReturnToY and NavTimer:hasExpired() then
-                        -- Set navigation to the generated coordinates
-                        mq.cmd('/nav locyx ' .. ReturnToY .. ' ' .. ReturnToX)
-
-                        -- Set HasReset to true
-                        HasReset = true
-
-                        -- Reset NavTimer and messageCoolDown to 1 second
-                        NavTimer:start()
-                        messageCoolDown:start()
+        -- Checks if an ability is ready and not already in the queue, and adds it to the queue if it passes these checks.
+        -- @param ability (string) The name of the ability to check.
+        -- Checks if an ability is ready and not already in the queue, and adds it to the queue if it passes these checks.
+        -- @param ability (string) The name of the ability to check.
+        function QueueAbilityIfReady(ability)
+            if ability and ability.name and ability.trash then
+                local status, error = pcall(function()
+                    if not AbilityScheduler:isAbilityOnCooldown(ability.name) and not AbilityScheduler:isAbilityInQueue(ability.name) then
+                        AbilityScheduler:addAbilityToQueue(ability.name)
                     end
+                end)
+                if not status then
+                    if UserSettings.Debug then print("Error queuing ability " .. ability.name .. ": "  .. error) end
                 end
-                mq.cmd('/attack off')
-                mq.cmd('/pet back')
+            else
+                if UserSettings.Debug then print("Attempted to queue nil ability or ability is not enabled in UserSettings: " .. ability.name) end
             end
         end
 
-        -- Perform a full reset if it hasn't been done yet, select a target, and start combat
-        if not HasReset and not Helpers.CheckCombat() then FullReset() end
-        if CheckForTargets then GetTarget() end
-        if mq.TLO.Target.ID() > 0 then StartCombat() end
+        for _, ability in ipairs(abilities) do
+            local status, error = pcall(function() QueueAbilityIfReady(ability) end)
+            if not status then
+                if UserSettings.Debug then print("Error queuing ability: " .. error) end
+            end
+        end
+
+        AbilityScheduler:castNextAbility()
+    elseif not Helpers.CheckCombat() then
+        AbilityScheduler:clearAbilityQueue()
     end
 end
 
-local callDelayTimer = Timer.new(0.75)
-callDelayTimer:start()
+local function HandleCombat()
+    local AssistRange = UserSettings.ManageCombat.AssistRange + math.random(-UserSettings.ManageCombat.AssistRangeScatter, UserSettings.ManageCombat.AssistRangeScatter)
+    local AssistPct = UserSettings.ManageCombat.AssistPct + math.random(-UserSettings.ManageCombat.AssistPctScatter, UserSettings.ManageCombat.AssistPctScatter)
+    local TempCampX = CampLocationX + math.random(-UserSettings.ManageCombat.CampScatter, UserSettings.ManageCombat.CampScatter)
+    local TempCampY = CampLocationY + math.random(-UserSettings.ManageCombat.CampScatter, UserSettings.ManageCombat.CampScatter)
+
+    if UserSettings.Debug then print("Assist Range: " .. tostring(AssistRange) .. ' Assist Percent:' .. tostring(AssistPct)) end
+
+    local function AcquireTarget()
+        if mq.TLO.SpawnCount('npc xtarhater radius ' ..  AssistRange)() > 0 then
+            if mq.TLO.Group.MainAssist.ID() ~= nil then 
+                mq.cmd('/assist ' .. mq.TLO.Group.MainAssist.Name())
+            elseif mq.TLO.Group.MainTank.ID() ~= nil then 
+                mq.cmd('/assist ' .. mq.TLO.Group.MainTank.Name())
+            else
+                ConsoleHistory:addMessage('No Main Assist or Main Tank found, please set one.')
+            end
+        end
+    end
+
+    local function EngageTarget()
+        if mq.TLO.Target.ID() > 0 then
+            if not mq.TLO.Stick.Active() then
+                mq.cmd('/squelch /face')
+                mq.cmd('/squelch /stick behind')
+                mq.cmd('/squelch /attack on')
+                ConsoleHistory:addMessage('Engaging: ' .. mq.TLO.Target.Name())
+            end
+        end
+    end
+
+    local function MakeCamp()
+        mq.cmd('/squelch /target clear')
+        mq.cmd('/squelch /attack off')
+        mq.cmd('/squelch /nav locyx ' .. TempCampY .. " " .. TempCampX)
+        ConsoleHistory:addMessage("Camping at: " .. TempCampY .. " " .. TempCampX)
+    end
+
+    local function BackOff()
+        mq.cmd('/squelch /target clear')
+        mq.cmd('/squelch /attack off')
+        mq.cmd('/aa act Fading Memories')
+        MakeCamp()
+        ConsoleHistory:addMessage('HP is Low - Backing Off')
+    end
+
+    AcquireTarget()
+
+    if Helpers.CheckXTargetList() and mq.TLO.Target.Distance() <= AssistRange and mq.TLO.Target.PctHPs() <= AssistPct  then
+        EngageTarget()
+        HasReset = false
+    end
+
+    if UserSettings.ManageCombat.UseCamp and not HasReset and not Helpers.CheckCombat() and not Helpers.CheckXTargetList() then
+        MakeCamp()
+        HasReset = true
+    end
+
+    if UserSettings.ManageCombat.BackOff and mq.TLO.Me.PctHPs() <= UserSettings.ManageCombat.BackOffPct then
+        BackOff()
+    end
+
+end
 
 local function HandleGems()
     -- Check if the cooldown timer has expired
@@ -310,34 +268,8 @@ local function HandlePulls()
     --todo
 end
 
--- Function: handleRecover
--- Description: Handles the mana/endurance recovery for your bard. If you are low, you'll use rallying solo when in a RESTING state.
 local function HandleRecover()
-    if mq.TLO.Me.PctEndurance() < 30 or mq.TLO.Me.PctMana() < 30 and UserSettings.ManageCombat.Toggle and not recovering then
-        recovering = true
-        mq.TLO.Me.Sit()
-
-        if mq.TLO.Me.CombatState() == 'RESTING' and mq.TLO.Me.AltAbilityReady('Rallying Solo') then
-            mq.cmd('/aa act Rallying Solo')
-            mq.TLO.Me.Sit()
-        end
-
-        if mq.TLO.Me.PctEndurance() >= 90 and mq.TLO.Me.PctMana() >= 90 then
-            mq.TLO.Me.Stand()
-            recovering = false
-        end
-
-        if mq.TLO.Me.CombatState() == 'COMBAT' then
-            mq.TLO.Me.Stand()
-            recovering = false
-        end
-    end
-end
-
-local function HandleNextAbility()
-    BurnBossScheduler:castNextAbility()
-    CopilotScheduler:castNextAbility()
-    CooldownScheduler:castNextAbility()
+    --todo
 end
 
 ---------------------------------------------------
@@ -353,5 +285,4 @@ return {
     HandleMez = HandleMez,
     HandlePulls = HandlePulls,
     HandleRecover = HandleRecover,
-    HandleNextAbility = HandleNextAbility
 }

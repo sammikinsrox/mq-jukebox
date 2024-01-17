@@ -11,17 +11,16 @@ local function header()
 
     ImGui.SameLine()
 
-    --[[
     -- Toggle Verbose Section
-    if UserSettings.ToggleVerbose then
+    if UserSettings.Debug then
         ImGui.PushStyleColor(ImGuiCol.Text, 0xFF00FF00)
     else
         ImGui.PushStyleColor(ImGuiCol.Text, 0xFFFFFFFF)
     end
-    UserSettings.ToggleVerbose = ImGui.Checkbox('Toggle Verbose', UserSettings.ToggleVerbose)
+    UserSettings.Debug = ImGui.Checkbox('Toggle Debug', UserSettings.Debug)
     ImGui.PushStyleColor(ImGuiCol.Text, 0xFFFFFFFF)
-    ImGui.SetItemTooltip('Enable this to toggle verbosity in the MQ2 window.')
-    ]]
+    ImGui.SetItemTooltip('Enable this to toggle debugging in the MQ2 Chat Window.')
+    
 
     if ImGui.Button('Save Settings') then
         Vars.SaveSettings(UserSettings)

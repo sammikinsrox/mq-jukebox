@@ -39,9 +39,16 @@ end
 -- @param ability (string) The name of the ability to check.
 -- @return (boolean) True if the ability is on cooldown, false otherwise.
 function AbilityScheduler:isAbilityOnCooldown(ability)
-    if mq.TLO.Me.AltAbilityReady(ability)() then
-        return false
+    if ability then
+        local status, error = pcall(function() return mq.TLO.Me.AltAbilityReady(ability)() end)
+        if status then
+            return not error
+        else
+            print("Error checking ability cooldown: " .. error)
+            return true
+        end
     else
+        print("Attempted to check cooldown of nil ability")
         return true
     end
 end
@@ -58,12 +65,15 @@ function AbilityScheduler:removeAbilityFromQueueIfOnCooldown(ability)
     end
 end
 
+-- Removes all abilities from the queue.
+function AbilityScheduler:clearAbilityQueue()
+    self.abilityQueue = {}
+end
+
 -- Casts the next ability in the ability queue if the delay timer has expired and the ability is not on cooldown.
 function AbilityScheduler:castNextAbility()
     if #self.abilityQueue > 0 and self.abilityDelayTimer:hasExpired() and Helpers.CheckCombat() then
         local ability = self.abilityQueue[1] -- Get the next ability without removing it from the queue
-
-        --print("Ability Ready: " .. ability .. " (" .. tostring(self.isAbilityOnCooldown(ability)) .. ")")
 
         -- Remove the ability from the queue if it's on cooldown
         self:removeAbilityFromQueueIfOnCooldown(ability)
@@ -80,6 +90,9 @@ function AbilityScheduler:castNextAbility()
             end
 
             self.abilityDelayTimer:start()
+        end
+        if not Helpers.CheckCombat() then
+            self:clearAbilityQueue()
         end
     end
 end

@@ -6,6 +6,7 @@ local mq = require('mq')
 UserSettings = {
     ToggleMacro = false,
     ToggleVerbose = true,
+    Debug = false,
     ManageCoPilot = {
         Bellow = false,
         VaingloriousShout = false,
@@ -87,6 +88,8 @@ UserSettings = {
         UseCamp = false,
         CampScatter = 35,
         AutoRecover = false,
+        BackOff = false,
+        BackOffPct = 50,
 
     },
     ManageGems = {
@@ -110,11 +113,7 @@ UserSettings = {
 --------------------------------------------------
 -- Variables
 --------------------------------------------------
-CampLocationX = mq.TLO.Me.X()
-CampLocationY = mq.TLO.Me.Y()
-CampLocationZ = mq.TLO.Me.Z()                                    -- May not ever be used, but its there.
 SettingsFileName = 'jukebox_' .. mq.TLO.Me.CleanName() .. '.lua' -- The settings filename is based on the character name.
-ChestSlot = tostring(mq.TLO.Me.Inventory(17).ID())               -- The ID of the item in the chest slot.
 
 --------------------------------------------------
 --             JustSettingsThings.com
@@ -152,5 +151,4 @@ UserSettings.ManageCoPilot.CoolDownDelay = UserSettings.ManageCoPilot.CoolDownDe
 return {
     UserSettings = UserSettings,
     SaveSettings = SaveSettings,
-    ChestSlot = ChestSlot,
 }

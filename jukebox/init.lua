@@ -4,13 +4,8 @@ mq = require('mq')
 require('ImGui')
 
 ---------------------------------------------------
--- Set EQ Client states
----------------------------------------------------
-mq.cmd('/assist off')
-
---------------------------------------------------
 -- Modules
---------------------------------------------------
+---------------------------------------------------
 -- User Vars Module
 Vars                = require('src.uservars')
 UserSettings        = Vars.UserSettings
@@ -18,9 +13,12 @@ UserSettings        = Vars.UserSettings
 -- Class Modules
 ConsoleHistory      = require('src.class.console').new()
 Timer               = require('src.class.timer')
+AbilityScheduler    = require('src.class.abilityscheduler')
+GemsScheduler       = require('src.class.gemscheduler')
 
--- Helper Module
+-- Helper Modules
 Helpers = require('src.helpers')
+Callers = require('src.callers')
 
 -- Handler Modules
 Handlers = require('src.Handlers')
@@ -31,6 +29,14 @@ local GuiCopilot    = require('src.gui.copilot')
 local GuiCombat     = require('src.gui.combat')
 local GuiSongs      = require('src.gui.songs')
 local GuiHistory    = require('src.gui.console')
+
+
+---------------------------------------------------
+-- Vars
+---------------------------------------------------
+CampLocationX = mq.TLO.Me.X()
+CampLocationY = mq.TLO.Me.Y()
+CampLocationZ = mq.TLO.Me.Z()
 
 -----------------------------------------------------------------------------------------------------------
 --                                        BEGIN INTERFACE CODE                                           --
@@ -59,28 +65,25 @@ local function updateImGui()
             ImGui.EndTabBar()
         end
     end
-    if isOpen or not isOpen or shouldDraw or not shouldDraw then
+    if (isOpen or not isOpen) or (shouldDraw or not shouldDraw) then
         if UserSettings.ToggleMacro then
             -- Handle the CoPilot Setings
-            if UserSettings.ManageCoPilot.Bellow then Handlers.HandleBellow() end
-            if UserSettings.ManageCoPilot.VaingloriousShout then Handlers.HandleVaingloriousShout() end
-            if UserSettings.ManageCoPilot.Selos then Handlers.HandleSelos() end
-            if UserSettings.ManageCoPilot.Cooldowns and Helpers.CheckCombat() then
-                Handlers.HandleCooldowns()
-                Handlers.HandleNextAbility()
-            end
+            if UserSettings.ManageCoPilot.Bellow then Callers.CallBellow() end
+            if UserSettings.ManageCoPilot.VaingloriousShout then Callers.CallVaingloriousShout() end
+            if UserSettings.ManageCoPilot.Selos then Callers.CallSelos() end
+            if UserSettings.ManageCoPilot.Cooldowns then Callers.CallCooldown() end
 
             -- Handle the Combat Settings
-            if UserSettings.ManageCombat.Toggle then Handlers.HandleCombat() end
+            if UserSettings.ManageCombat.Toggle then Callers.CallCombat() end
 
             -- Handle the Songs Settings
-            if UserSettings.ManageGems.Toggle then Handlers.HandleGems() end
+            if UserSettings.ManageGems.Toggle then Callers.CallGem() end
 
             -- Handle the Mez Settings
-            if UserSettings.ManageMez.Toggle then Handlers.HandleMez() end
+            if UserSettings.ManageMez.Toggle then Callers.CallMez() end
 
             -- Handle recovery if mana or endurance are low.
-            if UserSettings.ManageCombat.AutoRecover and UserSettings.ManageCombat.Toggle then Handlers.HandleRecover() end
+            if UserSettings.ManageCombat.AutoRecover and UserSettings.ManageCombat.Toggle then Callers.CallRecover() end
 
         end
     end

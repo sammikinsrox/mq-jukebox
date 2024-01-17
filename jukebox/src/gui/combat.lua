@@ -14,6 +14,7 @@ local function Combat()
 
         ImGui.Separator()
 
+        --[[
         -- Assist checkbox
         if UserSettings.ManageCombat.Assist then
             ImGui.PushStyleColor(ImGuiCol.Text, 0xFF00FF00)
@@ -23,6 +24,7 @@ local function Combat()
         UserSettings.ManageCombat.Assist = ImGui.Checkbox('Assist Main Assist / Main Tank', UserSettings.ManageCombat.Assist)
         ImGui.PushStyleColor(ImGuiCol.Text, 0xFFFFFFFF)
         ImGui.SetItemTooltip('Automagically assist the main assist or main tank.')
+        ]]
 
         -- Assist Range Slider
         if UserSettings.ManageCombat.Assist then
